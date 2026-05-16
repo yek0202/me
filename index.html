@@ -513,6 +513,36 @@ section{position:relative;overflow:visible}
   .proj-info{padding:28px}
 }
 
+/* ── COBE Globe ── */
+.globe-container {
+  position: absolute;
+  left: 75%;
+  top: 50%;
+  transform: translate(-50%, -52%);
+  width: min(52vw, 680px);
+  aspect-ratio: 1;
+  z-index: 4;
+  pointer-events: none;
+}
+#globe-canvas {
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 36%, transparent 65%);
+  mask-image: radial-gradient(circle at 50% 50%, black 36%, transparent 65%);
+}
+/* PRD warm glow behind the region */
+.globe-prd-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 54% 50%, rgba(197,82,30,0.28) 0%, rgba(0,0,0,0) 52%);
+  pointer-events: none;
+  z-index: 3;
+  border-radius: 50%;
+}
+@media(max-width:900px) {
+  .globe-container { display: none; }
+}
+
 /* ========================================
    CYBERPUNK HERO — SPLIT LAYOUT
    ======================================== */
@@ -1149,6 +1179,11 @@ section{position:relative;overflow:visible}
     </div>
   </div>
   <div class="hc-right"><div class="hc-glow"></div><div class="hc-tint"></div></div>
+  <!-- COBE Globe — direct child of hero so overflow:hidden on hc-right doesn't clip it -->
+  <div class="globe-container">
+    <div class="globe-prd-glow"></div>
+    <canvas id="globe-canvas"></canvas>
+  </div>
 </section>
 
 <div id="about-section-wrapper">
@@ -1884,6 +1919,21 @@ section{position:relative;overflow:visible}
     });
   });
 
+  // ── Auto-trigger WELCOME roll every 2 s ──
+  var autoWelcomeTimer;
+  function triggerAutoRoll() {
+    if (!document.getElementById('splash')) { clearInterval(autoWelcomeTimer); return; }
+    hoverTimers.forEach(clearTimeout); hoverTimers = [];
+    letters.forEach(function(l, i) {
+      l.classList.remove('rolling'); void l.offsetWidth;
+      hoverTimers.push(setTimeout(function(){ l.classList.add('rolling'); }, i * 55));
+    });
+  }
+  setTimeout(function(){
+    triggerAutoRoll();
+    autoWelcomeTimer = setInterval(triggerAutoRoll, 2000);
+  }, 1500);
+
   // ── Click: slide entire splash upward ──
   welcomeBtn.addEventListener('click', function onClick(){
     welcomeBtn.removeEventListener('click', onClick);
@@ -1904,6 +1954,7 @@ section{position:relative;overflow:visible}
   var spotRafId = null;
 
   splash.addEventListener('mousemove', function(e){
+    if (window._splashAutoAnim) return;
     var rectZh   = nameZh.getBoundingClientRect();
     var rectKain = splashName.getBoundingClientRect();
     spotX = e.clientX - rectZh.left;
@@ -1943,6 +1994,162 @@ section{position:relative;overflow:visible}
       spotRafId = null;
     }
   }
+}());
+
+// ============================================================
+// KAIN PARTICLE DISPERSION AUTO-ANIMATION
+// ============================================================
+(function() {
+  var splash    = document.getElementById('splash');
+  if (!splash) return;
+  var nameEl    = document.getElementById('splash-name');
+  var nameZhEl  = document.getElementById('splash-name-zh');
+  var nameGroup = document.getElementById('splash-name-group');
+  if (!nameEl || !nameZhEl || !nameGroup) return;
+
+  // Overlay canvas inside name-group
+  var pCvs = document.createElement('canvas');
+  pCvs.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;';
+  nameGroup.appendChild(pCvs);
+  var pCtx = pCvs.getContext('2d');
+
+  var particles  = [];
+  var state      = 'idle';   // idle | scattering | hold | gathering
+  var stateStart = 0;
+  var SCATTER_MS = 700;
+  var HOLD_MS    = 1500;
+  var GATHER_MS  = 700;
+  var IDLE_MS    = 2000;
+  var raf        = null;
+
+  function ease(t) { return t < .5 ? 2*t*t : -1+(4-2*t)*t; }
+
+  function syncSize() {
+    var r = nameGroup.getBoundingClientRect();
+    if (r.width > 0) { pCvs.width = r.width | 0; pCvs.height = r.height | 0; }
+  }
+
+  function buildParticles() {
+    syncSize();
+    var gRect = nameGroup.getBoundingClientRect();
+    var nRect = nameEl.getBoundingClientRect();
+    if (!nRect.width) return false;
+    var offX = nRect.left - gRect.left;
+    var offY = nRect.top  - gRect.top;
+
+    var oc = document.createElement('canvas');
+    oc.width  = Math.ceil(nRect.width)  || 1;
+    oc.height = Math.ceil(nRect.height) || 1;
+    var oCtx = oc.getContext('2d');
+    var fs   = window.getComputedStyle(nameEl).fontSize;
+    oCtx.font          = 'italic 400 ' + fs + ' "DM Serif Display",serif';
+    oCtx.fillStyle     = '#fff';
+    oCtx.textBaseline  = 'middle';
+    oCtx.textAlign     = 'center';
+    oCtx.fillText('Kain', oc.width / 2, oc.height / 2);
+
+    var px   = oCtx.getImageData(0, 0, oc.width, oc.height).data;
+    var step = 4;
+    particles = [];
+    for (var y = 0; y < oc.height; y += step) {
+      for (var x = 0; x < oc.width; x += step) {
+        var i4 = (y * oc.width + x) * 4;
+        if (px[i4 + 3] > 80) {
+          var tx = offX + x, ty = offY + y;
+          var angle = Math.random() * Math.PI * 2;
+          var dist  = 60 + Math.random() * 180;
+          particles.push({ tx: tx, ty: ty,
+            sx: tx + Math.cos(angle) * dist,
+            sy: ty + Math.sin(angle) * dist,
+            r:  1 + Math.random() * 2 });
+        }
+      }
+    }
+    return particles.length > 0;
+  }
+
+  function drawDisperse(p) {
+    pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
+    var t = ease(p);
+    particles.forEach(function(pt) {
+      pCtx.globalAlpha = 1 - t * 0.9;
+      pCtx.fillStyle   = '#fff';
+      pCtx.beginPath();
+      pCtx.arc(pt.tx + (pt.sx - pt.tx) * t, pt.ty + (pt.sy - pt.ty) * t, pt.r, 0, Math.PI * 2);
+      pCtx.fill();
+    });
+    pCtx.globalAlpha = 1;
+  }
+
+  function drawGather(p) {
+    pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
+    var t = ease(p);
+    particles.forEach(function(pt) {
+      pCtx.globalAlpha = t;
+      pCtx.fillStyle   = '#fff';
+      pCtx.beginPath();
+      pCtx.arc(pt.sx + (pt.tx - pt.sx) * t, pt.sy + (pt.ty - pt.sy) * t, pt.r, 0, Math.PI * 2);
+      pCtx.fill();
+    });
+    pCtx.globalAlpha = 1;
+  }
+
+  function showZh(on) {
+    if (on) {
+      nameZhEl.style.webkitMaskImage = 'none';
+      nameZhEl.style.maskImage       = 'none';
+      nameZhEl.style.opacity         = '1';
+    } else {
+      var m = 'radial-gradient(circle 0px at 50% 50%, black, transparent)';
+      nameZhEl.style.webkitMaskImage = m;
+      nameZhEl.style.maskImage       = m;
+      nameZhEl.style.opacity         = '';
+    }
+  }
+
+  function tick(now) {
+    if (!document.getElementById('splash')) { raf = null; return; }
+    var el = now - stateStart;
+
+    if (state === 'scattering') {
+      var p = Math.min(1, el / SCATTER_MS);
+      nameEl.style.opacity = '0';
+      showZh(true);
+      drawDisperse(p);
+      if (p >= 1) {
+        pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
+        state = 'hold'; stateStart = now;
+      }
+    } else if (state === 'hold') {
+      if (el >= HOLD_MS) { state = 'gathering'; stateStart = now; }
+    } else if (state === 'gathering') {
+      var p = Math.min(1, el / GATHER_MS);
+      drawGather(p);
+      nameZhEl.style.opacity = String(Math.max(0, 1 - p * 1.5));
+      if (p >= 1) {
+        pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
+        nameEl.style.opacity = '1';
+        showZh(false);
+        state = 'idle';
+        window._splashAutoAnim = false;
+        raf = null;
+        setTimeout(startCycle, IDLE_MS);
+        return;
+      }
+    }
+    raf = requestAnimationFrame(tick);
+  }
+
+  function startCycle() {
+    if (state !== 'idle' || !document.getElementById('splash')) return;
+    if (!buildParticles()) { setTimeout(startCycle, IDLE_MS); return; }
+    window._splashAutoAnim = true;
+    state = 'scattering';
+    stateStart = performance.now();
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+
+  setTimeout(startCycle, 3000);
 }());
 
 // ============================================================
@@ -2136,5 +2343,90 @@ sections.forEach(function(s){ scrollObs.observe(s); });
   if(qb) qb.style.display = 'flex';
 })();
 </script>
+<script type="module">
+// ============================================================
+// COBE v2 GLOBE — Guangzhou / Pearl River Delta
+// ============================================================
+import createGlobe from 'https://unpkg.com/cobe@2.0.1/dist/index.esm.js';
+
+const canvas = document.getElementById('globe-canvas');
+if (!canvas) throw new Error('no globe canvas');
+
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+let phi   = 2.0;   // ≈113°E, Guangzhou faces viewer on load
+let globe = null;
+let raf   = null;
+
+const MARKERS = [
+  // Guangzhou — main highlight
+  { location: [23.13, 113.26], size: 0.09 },
+  // Pearl River Delta cluster
+  { location: [22.54, 114.06], size: 0.055 }, // Shenzhen
+  { location: [23.02, 113.75], size: 0.055 }, // Dongguan
+  { location: [23.02, 113.12], size: 0.055 }, // Foshan
+  { location: [22.27, 113.56], size: 0.045 }, // Zhuhai
+  { location: [22.39, 113.54], size: 0.045 }, // Zhongshan
+  { location: [22.32, 114.17], size: 0.045 }, // Hong Kong
+  { location: [22.68, 113.88], size: 0.040 }, // Huizhou area
+  { location: [23.45, 113.04], size: 0.035 }, // Zhaoqing
+];
+
+function initGlobe() {
+  if (raf)   { cancelAnimationFrame(raf); raf = null; }
+  if (globe) { globe.destroy(); globe = null; }
+
+  const size = canvas.parentElement.offsetWidth || 600;
+
+  // COBE v2: width/height are CSS pixels, dpr handled internally
+  globe = createGlobe(canvas, {
+    devicePixelRatio : dpr,
+    width            : size,
+    height           : size,
+    phi              : phi,
+    theta            : 0.32,
+    dark             : 1,
+    diffuse          : 1.6,
+    mapSamples       : 22000,
+    mapBrightness    : 5,
+    baseColor        : [0.20, 0.14, 0.09],
+    markerColor      : [1.00, 0.72, 0.22],
+    glowColor        : [0.77, 0.33, 0.12],
+    markers          : MARKERS,
+  });
+
+  // v2 animation: manual rAF loop calling globe.update({phi})
+  function animate() {
+    phi += 0.0028;
+    globe.update({ phi });
+    raf = requestAnimationFrame(animate);
+  }
+  raf = requestAnimationFrame(animate);
+}
+
+// Only run while hero is on screen
+const hero = document.getElementById('hero');
+let active = false;
+
+if (hero && window.IntersectionObserver) {
+  new IntersectionObserver(entries => {
+    const vis = entries[0].isIntersecting;
+    if (vis  && !active) { active = true;  initGlobe(); }
+    if (!vis &&  active) {
+      active = false;
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      if (globe) { globe.destroy(); globe = null; }
+    }
+  }, { threshold: 0.05 }).observe(hero);
+} else {
+  initGlobe();
+}
+
+let rsz;
+window.addEventListener('resize', () => {
+  clearTimeout(rsz);
+  rsz = setTimeout(() => { if (active) initGlobe(); }, 250);
+});
+</script>
+
 </body>
 </html>
