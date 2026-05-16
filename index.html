@@ -513,34 +513,23 @@ section{position:relative;overflow:visible}
   .proj-info{padding:28px}
 }
 
-/* ── COBE Globe ── */
-.globe-container {
+/* ── COBE Globe (Splash background) ── */
+#globe-splash-wrap {
   position: absolute;
-  left: 75%;
+  left: 50%;
   top: 50%;
-  transform: translate(-50%, -52%);
-  width: min(52vw, 680px);
+  transform: translate(-50%, -50%);
+  width: min(88vmin, 860px);
   aspect-ratio: 1;
-  z-index: 4;
+  z-index: 1;
   pointer-events: none;
 }
 #globe-canvas {
   width: 100%;
   height: 100%;
-  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 36%, transparent 65%);
-  mask-image: radial-gradient(circle at 50% 50%, black 36%, transparent 65%);
-}
-/* PRD warm glow behind the region */
-.globe-prd-glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 54% 50%, rgba(197,82,30,0.28) 0%, rgba(0,0,0,0) 52%);
-  pointer-events: none;
-  z-index: 3;
-  border-radius: 50%;
-}
-@media(max-width:900px) {
-  .globe-container { display: none; }
+  opacity: 0.78;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 38%, transparent 66%);
+  mask-image: radial-gradient(circle at 50% 50%, black 38%, transparent 66%);
 }
 
 /* ========================================
@@ -1123,6 +1112,9 @@ section{position:relative;overflow:visible}
 <!-- SPLASH SCREEN -->
 <div id="splash">
   <canvas id="splash-mask"></canvas>
+  <div id="globe-splash-wrap">
+    <canvas id="globe-canvas"></canvas>
+  </div>
   <div id="splash-content">
     <div id="splash-name-group">
       <h1 id="splash-name-zh">叶梓坤</h1>
@@ -1179,11 +1171,6 @@ section{position:relative;overflow:visible}
     </div>
   </div>
   <div class="hc-right"><div class="hc-glow"></div><div class="hc-tint"></div></div>
-  <!-- COBE Globe — direct child of hero so overflow:hidden on hc-right doesn't clip it -->
-  <div class="globe-container">
-    <div class="globe-prd-glow"></div>
-    <canvas id="globe-canvas"></canvas>
-  </div>
 </section>
 
 <div id="about-section-wrapper">
@@ -2403,29 +2390,20 @@ function initGlobe() {
   raf = requestAnimationFrame(animate);
 }
 
-// Only run while hero is on screen
-const hero = document.getElementById('hero');
-let active = false;
+// Only run while splash is on screen — destroy when WELCOME dismisses it
+initGlobe();   // splash is the first thing visible, start immediately
 
-if (hero && window.IntersectionObserver) {
-  new IntersectionObserver(entries => {
-    const vis = entries[0].isIntersecting;
-    if (vis  && !active) { active = true;  initGlobe(); }
-    if (!vis &&  active) {
-      active = false;
-      if (raf) { cancelAnimationFrame(raf); raf = null; }
+const splashEl = document.getElementById('splash');
+if (splashEl) {
+  // MutationObserver watches for splash being removed from DOM
+  new MutationObserver((_, obs) => {
+    if (!document.getElementById('splash')) {
+      if (raf)   { cancelAnimationFrame(raf); raf = null; }
       if (globe) { globe.destroy(); globe = null; }
+      obs.disconnect();
     }
-  }, { threshold: 0.05 }).observe(hero);
-} else {
-  initGlobe();
+  }).observe(document.body, { childList: true });
 }
-
-let rsz;
-window.addEventListener('resize', () => {
-  clearTimeout(rsz);
-  rsz = setTimeout(() => { if (active) initGlobe(); }, 250);
-});
 </script>
 
 </body>
