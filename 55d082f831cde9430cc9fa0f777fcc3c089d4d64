@@ -1,0 +1,24 @@
+index.html
+  31350b2839d9b959 527,533,536-541,555-566,1152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.6",
+  "base_commit_sha": "55d082f831cde9430cc9fa0f777fcc3c089d4d64",
+  "prompts": {
+    "31350b2839d9b959": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9936ade6-117a-4a45-a8be-18ba2043c82e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "unknown",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 36,
+      "accepted_lines": 22,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/f86a94fa43280a4c8399e915052bb4f48c69a42911b28a8333dcac62bf2a6154"
+    }
+  }
+}
