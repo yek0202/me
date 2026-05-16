@@ -561,12 +561,21 @@ section{position:relative;overflow:visible}
   width: 80%;
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(170, 155, 138, 0.36);
   box-shadow:
-    0 0 10px 2px rgba(255,255,255,0.22),
-    inset 0 0 6px 1px rgba(255,255,255,0.10);
+    0 0 6px 1px rgba(200,180,160,0.12),
+    inset 0 0 4px 1px rgba(180,160,140,0.07);
   pointer-events: none;
   z-index: 2;
+}
+#exit-overlay {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: none;
 }
 
 /* ========================================
@@ -1153,6 +1162,7 @@ section{position:relative;overflow:visible}
     <div id="globe-outer-glow"></div>
     <canvas id="globe-canvas"></canvas>
     <div id="globe-edge-ring"></div>
+    <div id="exit-overlay"></div>
   </div>
   <div id="splash-content">
     <div id="splash-name-group">
@@ -1960,16 +1970,41 @@ section{position:relative;overflow:visible}
     autoWelcomeTimer = setInterval(triggerAutoRoll, 2000);
   }, 1500);
 
-  // ── Click: slide entire splash upward ──
+  // ── Click: globe exit sequence, then reveal page ──
   welcomeBtn.addEventListener('click', function onClick(){
     welcomeBtn.removeEventListener('click', onClick);
-    splash.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.6, 1)';
-    splash.style.transform  = 'translateY(-100vh)';
-    setTimeout(function(){
-      splash.remove();
-      document.body.style.overflow = '';
-      window.removeEventListener('resize', onResize);
-    }, 420);
+    clearInterval(autoWelcomeTimer);
+    hoverTimers.forEach(clearTimeout);
+
+    function doFallback() {
+      splash.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.6, 1)';
+      splash.style.transform  = 'translateY(-100vh)';
+      setTimeout(function(){
+        splash.remove();
+        document.body.style.overflow = '';
+        window.removeEventListener('resize', onResize);
+      }, 420);
+    }
+
+    if (window.globeController) {
+      window.globeController.startExitSequence(function() {
+        // Apply blur to body then remove splash for blur-to-clear reveal
+        document.body.style.filter = 'blur(10px)';
+        document.body.style.transition = 'none';
+        splash.remove();
+        document.body.style.overflow = '';
+        window.removeEventListener('resize', onResize);
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            document.body.style.transition = 'filter 0.75s ease';
+            document.body.style.filter = 'blur(0px)';
+            setTimeout(function(){ document.body.style.transition = ''; document.body.style.filter = ''; }, 800);
+          });
+        });
+      });
+    } else {
+      doFallback();
+    }
   });
 
   // ── Spotlight: reveal 叶梓坤 + dim Kain under mouse ──
@@ -2222,9 +2257,53 @@ const canvas = document.getElementById('globe-canvas');
 if (!canvas) throw new Error('no globe canvas');
 
 const dpr = Math.min(window.devicePixelRatio || 1, 2);
-let phi   = 2.0;   // ≈113°E, Guangzhou faces viewer on load
+let phi   = 2.0;
 let globe = null;
 let raf   = null;
+
+// PRD_PHI = the phi at which Guangzhou faces the viewer (matches initial phi)
+const PRD_PHI = 2.0;
+const TWO_PI  = Math.PI * 2;
+
+let globeMode   = 'normal'; // 'normal' | 'fastSpin' | 'zoom' | 'done'
+let exitCallback = null;
+
+function isPRDVisible() {
+  let p = ((phi % TWO_PI) + TWO_PI) % TWO_PI;
+  let t = ((PRD_PHI % TWO_PI) + TWO_PI) % TWO_PI;
+  let diff = Math.abs(p - t);
+  if (diff > Math.PI) diff = TWO_PI - diff;
+  return diff < 0.18;
+}
+
+function startZoom() {
+  const wrap    = document.getElementById('globe-splash-wrap');
+  const overlay = document.getElementById('exit-overlay');
+  if (!wrap || !overlay) { if (exitCallback) exitCallback(); return; }
+
+  // Zoom: transform-origin slightly above center to track PRD latitude
+  wrap.style.transformOrigin = '50% 47%';
+  wrap.style.transition = 'transform 1.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+  wrap.style.transform  = 'translate(-50%, -50%) scale(4)';
+
+  // t=0.9s: black overlay fades in
+  setTimeout(function() {
+    overlay.style.transition = 'opacity 0.6s ease';
+    overlay.style.opacity    = '1';
+  }, 900);
+
+  // t=1.5s: transition overlay to warm cream (page background color)
+  setTimeout(function() {
+    overlay.style.transition = 'background-color 0.45s ease';
+    overlay.style.backgroundColor = '#f7f5f0';
+  }, 1500);
+
+  // t=2.1s: fire callback (overlay is now opaque warm cream = seamless handoff)
+  setTimeout(function() {
+    globeMode = 'done';
+    if (exitCallback) exitCallback();
+  }, 2100);
+}
 
 const MARKERS = [];
 const ARCS    = [];
@@ -2235,7 +2314,6 @@ function initGlobe() {
 
   const size = canvas.parentElement.offsetWidth || 600;
 
-  // COBE v2: width/height are CSS pixels, dpr handled internally
   globe = createGlobe(canvas, {
     devicePixelRatio : dpr,
     width            : size,
@@ -2245,7 +2323,7 @@ function initGlobe() {
     dark             : 1,
     diffuse          : 2.2,
     mapSamples       : 22000,
-    mapBrightness    : 10,
+    mapBrightness    : 15,
     baseColor        : [0.32, 0.22, 0.12],
     markerColor      : [1.00, 0.82, 0.35],
     glowColor        : [1.4, 0.58, 0.16],
@@ -2253,21 +2331,42 @@ function initGlobe() {
     arcs             : ARCS,
   });
 
-  // v2 animation: manual rAF loop calling globe.update({phi})
   function animate() {
-    phi += 0.0028;
-    globe.update({ phi });
-    raf = requestAnimationFrame(animate);
+    if (globeMode === 'normal') {
+      phi += 0.0028;
+    } else if (globeMode === 'fastSpin') {
+      phi += 0.028;
+      if (isPRDVisible()) {
+        globeMode = 'zoom';
+        startZoom();
+      }
+    }
+    // 'zoom' and 'done' modes: phi stays fixed
+    if (globeMode !== 'done') {
+      globe.update({ phi });
+      raf = requestAnimationFrame(animate);
+    }
   }
   raf = requestAnimationFrame(animate);
 }
 
-// Only run while splash is on screen — destroy when WELCOME dismisses it
-initGlobe();   // splash is the first thing visible, start immediately
+// Expose controller for splash click handler
+window.globeController = {
+  startExitSequence: function(cb) {
+    exitCallback = cb;
+    if (isPRDVisible()) {
+      globeMode = 'zoom';
+      startZoom();
+    } else {
+      globeMode = 'fastSpin';
+    }
+  }
+};
+
+initGlobe();
 
 const splashEl = document.getElementById('splash');
 if (splashEl) {
-  // MutationObserver watches for splash being removed from DOM
   new MutationObserver((_, obs) => {
     if (!document.getElementById('splash')) {
       if (raf)   { cancelAnimationFrame(raf); raf = null; }
