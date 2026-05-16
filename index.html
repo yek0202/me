@@ -815,6 +815,16 @@ section{position:relative;overflow:visible}
   line-height: 2;
 }
 
+/* Hero entry slide-up */
+@keyframes heroSlideUp {
+  from { opacity: 0; transform: translateY(26px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hc-left { opacity: 0; transform: translateY(26px); }
+.hc-left.hero-revealed {
+  animation: heroSlideUp 0.78s 0.05s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   #hero.hero-cyber {
@@ -1998,6 +2008,9 @@ section{position:relative;overflow:visible}
           requestAnimationFrame(function(){
             document.body.style.transition = 'filter 0.75s ease';
             document.body.style.filter = 'blur(0px)';
+            // Hero text slides up as page sharpens
+            var hcLeft = document.getElementById('hc-left');
+            if (hcLeft) hcLeft.classList.add('hero-revealed');
             setTimeout(function(){ document.body.style.transition = ''; document.body.style.filter = ''; }, 800);
           });
         });
@@ -2283,26 +2296,26 @@ function startZoom() {
 
   // Zoom: transform-origin slightly above center to track PRD latitude
   wrap.style.transformOrigin = '50% 47%';
-  wrap.style.transition = 'transform 1.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+  wrap.style.transition = 'transform 0.75s cubic-bezier(0.22, 0.61, 0.36, 1)';
   wrap.style.transform  = 'translate(-50%, -50%) scale(4)';
 
-  // t=0.9s: black overlay fades in
+  // t=0.45s: black overlay fades in
   setTimeout(function() {
-    overlay.style.transition = 'opacity 0.6s ease';
+    overlay.style.transition = 'opacity 0.35s ease';
     overlay.style.opacity    = '1';
-  }, 900);
+  }, 450);
 
-  // t=1.5s: transition overlay to warm cream (page background color)
+  // t=0.8s: transition overlay to warm cream (page background color)
   setTimeout(function() {
-    overlay.style.transition = 'background-color 0.45s ease';
+    overlay.style.transition = 'background-color 0.28s ease';
     overlay.style.backgroundColor = '#f7f5f0';
-  }, 1500);
+  }, 800);
 
-  // t=2.1s: fire callback (overlay is now opaque warm cream = seamless handoff)
+  // t=1.1s: fire callback (overlay is now opaque warm cream = seamless handoff)
   setTimeout(function() {
     globeMode = 'done';
     if (exitCallback) exitCallback();
-  }, 2100);
+  }, 1100);
 }
 
 const MARKERS = [];
