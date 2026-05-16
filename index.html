@@ -528,8 +528,8 @@ section{position:relative;overflow:visible}
   width: 100%;
   height: 100%;
   opacity: 0.78;
-  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 38%, transparent 66%);
-  mask-image: radial-gradient(circle at 50% 50%, black 38%, transparent 66%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 38%, transparent 122%);
+  mask-image: radial-gradient(circle at 50% 50%, black 38%, transparent 122%);
 }
 
 /* ========================================
@@ -1941,7 +1941,6 @@ section{position:relative;overflow:visible}
   var spotRafId = null;
 
   splash.addEventListener('mousemove', function(e){
-    if (window._splashAutoAnim) return;
     var rectZh   = nameZh.getBoundingClientRect();
     var rectKain = splashName.getBoundingClientRect();
     spotX = e.clientX - rectZh.left;
@@ -1981,162 +1980,6 @@ section{position:relative;overflow:visible}
       spotRafId = null;
     }
   }
-}());
-
-// ============================================================
-// KAIN PARTICLE DISPERSION AUTO-ANIMATION
-// ============================================================
-(function() {
-  var splash    = document.getElementById('splash');
-  if (!splash) return;
-  var nameEl    = document.getElementById('splash-name');
-  var nameZhEl  = document.getElementById('splash-name-zh');
-  var nameGroup = document.getElementById('splash-name-group');
-  if (!nameEl || !nameZhEl || !nameGroup) return;
-
-  // Overlay canvas inside name-group
-  var pCvs = document.createElement('canvas');
-  pCvs.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;';
-  nameGroup.appendChild(pCvs);
-  var pCtx = pCvs.getContext('2d');
-
-  var particles  = [];
-  var state      = 'idle';   // idle | scattering | hold | gathering
-  var stateStart = 0;
-  var SCATTER_MS = 700;
-  var HOLD_MS    = 1500;
-  var GATHER_MS  = 700;
-  var IDLE_MS    = 2000;
-  var raf        = null;
-
-  function ease(t) { return t < .5 ? 2*t*t : -1+(4-2*t)*t; }
-
-  function syncSize() {
-    var r = nameGroup.getBoundingClientRect();
-    if (r.width > 0) { pCvs.width = r.width | 0; pCvs.height = r.height | 0; }
-  }
-
-  function buildParticles() {
-    syncSize();
-    var gRect = nameGroup.getBoundingClientRect();
-    var nRect = nameEl.getBoundingClientRect();
-    if (!nRect.width) return false;
-    var offX = nRect.left - gRect.left;
-    var offY = nRect.top  - gRect.top;
-
-    var oc = document.createElement('canvas');
-    oc.width  = Math.ceil(nRect.width)  || 1;
-    oc.height = Math.ceil(nRect.height) || 1;
-    var oCtx = oc.getContext('2d');
-    var fs   = window.getComputedStyle(nameEl).fontSize;
-    oCtx.font          = 'italic 400 ' + fs + ' "DM Serif Display",serif';
-    oCtx.fillStyle     = '#fff';
-    oCtx.textBaseline  = 'middle';
-    oCtx.textAlign     = 'center';
-    oCtx.fillText('Kain', oc.width / 2, oc.height / 2);
-
-    var px   = oCtx.getImageData(0, 0, oc.width, oc.height).data;
-    var step = 4;
-    particles = [];
-    for (var y = 0; y < oc.height; y += step) {
-      for (var x = 0; x < oc.width; x += step) {
-        var i4 = (y * oc.width + x) * 4;
-        if (px[i4 + 3] > 80) {
-          var tx = offX + x, ty = offY + y;
-          var angle = Math.random() * Math.PI * 2;
-          var dist  = 60 + Math.random() * 180;
-          particles.push({ tx: tx, ty: ty,
-            sx: tx + Math.cos(angle) * dist,
-            sy: ty + Math.sin(angle) * dist,
-            r:  1 + Math.random() * 2 });
-        }
-      }
-    }
-    return particles.length > 0;
-  }
-
-  function drawDisperse(p) {
-    pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
-    var t = ease(p);
-    particles.forEach(function(pt) {
-      pCtx.globalAlpha = 1 - t * 0.9;
-      pCtx.fillStyle   = '#fff';
-      pCtx.beginPath();
-      pCtx.arc(pt.tx + (pt.sx - pt.tx) * t, pt.ty + (pt.sy - pt.ty) * t, pt.r, 0, Math.PI * 2);
-      pCtx.fill();
-    });
-    pCtx.globalAlpha = 1;
-  }
-
-  function drawGather(p) {
-    pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
-    var t = ease(p);
-    particles.forEach(function(pt) {
-      pCtx.globalAlpha = t;
-      pCtx.fillStyle   = '#fff';
-      pCtx.beginPath();
-      pCtx.arc(pt.sx + (pt.tx - pt.sx) * t, pt.sy + (pt.ty - pt.sy) * t, pt.r, 0, Math.PI * 2);
-      pCtx.fill();
-    });
-    pCtx.globalAlpha = 1;
-  }
-
-  function showZh(on) {
-    if (on) {
-      nameZhEl.style.webkitMaskImage = 'none';
-      nameZhEl.style.maskImage       = 'none';
-      nameZhEl.style.opacity         = '1';
-    } else {
-      var m = 'radial-gradient(circle 0px at 50% 50%, black, transparent)';
-      nameZhEl.style.webkitMaskImage = m;
-      nameZhEl.style.maskImage       = m;
-      nameZhEl.style.opacity         = '';
-    }
-  }
-
-  function tick(now) {
-    if (!document.getElementById('splash')) { raf = null; return; }
-    var el = now - stateStart;
-
-    if (state === 'scattering') {
-      var p = Math.min(1, el / SCATTER_MS);
-      nameEl.style.opacity = '0';
-      showZh(true);
-      drawDisperse(p);
-      if (p >= 1) {
-        pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
-        state = 'hold'; stateStart = now;
-      }
-    } else if (state === 'hold') {
-      if (el >= HOLD_MS) { state = 'gathering'; stateStart = now; }
-    } else if (state === 'gathering') {
-      var p = Math.min(1, el / GATHER_MS);
-      drawGather(p);
-      nameZhEl.style.opacity = String(Math.max(0, 1 - p * 1.5));
-      if (p >= 1) {
-        pCtx.clearRect(0, 0, pCvs.width, pCvs.height);
-        nameEl.style.opacity = '1';
-        showZh(false);
-        state = 'idle';
-        window._splashAutoAnim = false;
-        raf = null;
-        setTimeout(startCycle, IDLE_MS);
-        return;
-      }
-    }
-    raf = requestAnimationFrame(tick);
-  }
-
-  function startCycle() {
-    if (state !== 'idle' || !document.getElementById('splash')) return;
-    if (!buildParticles()) { setTimeout(startCycle, IDLE_MS); return; }
-    window._splashAutoAnim = true;
-    state = 'scattering';
-    stateStart = performance.now();
-    if (!raf) raf = requestAnimationFrame(tick);
-  }
-
-  setTimeout(startCycle, 3000);
 }());
 
 // ============================================================
@@ -2344,19 +2187,45 @@ let phi   = 2.0;   // ≈113°E, Guangzhou faces viewer on load
 let globe = null;
 let raf   = null;
 
+// ── Guangzhou center marker only (circle markers removed for PRD) ──
 const MARKERS = [
-  // Guangzhou — main highlight
-  { location: [23.13, 113.26], size: 0.09 },
-  // Pearl River Delta cluster
-  { location: [22.54, 114.06], size: 0.055 }, // Shenzhen
-  { location: [23.02, 113.75], size: 0.055 }, // Dongguan
-  { location: [23.02, 113.12], size: 0.055 }, // Foshan
-  { location: [22.27, 113.56], size: 0.045 }, // Zhuhai
-  { location: [22.39, 113.54], size: 0.045 }, // Zhongshan
-  { location: [22.32, 114.17], size: 0.045 }, // Hong Kong
-  { location: [22.68, 113.88], size: 0.040 }, // Huizhou area
-  { location: [23.45, 113.04], size: 0.035 }, // Zhaoqing
+  { location: [23.13, 113.26], size: 0.07 },
 ];
+
+// ── PRD boundary polygon (red arc outline) ──
+const PRD_RED   = [1.0, 0.18, 0.12];
+const prdPts = [
+  [24.1, 113.0], [24.3, 113.9], [23.9, 114.5],
+  [23.2, 115.0], [22.6, 115.0], [22.1, 114.4],
+  [21.9, 113.5], [22.2, 112.8], [23.0, 112.4],
+  [24.1, 113.0],   // close polygon
+];
+const prdArcs = prdPts.slice(1).map((to, i) => ({
+  from: prdPts[i], to, color: PRD_RED,
+}));
+
+// ── Coordinate symbol at Guangzhou: circle ring + crosshair arms ──
+const CROSS_RED = [1.0, 0.35, 0.18];
+const gz  = [23.13, 113.26];
+const rLat = 0.36, rLng = 0.40;   // ring radii (lng slightly wider ~cos(23°))
+const SEG  = 12;
+const ringArcs = Array.from({ length: SEG }, (_, i) => {
+  const a1 = (i / SEG) * Math.PI * 2;
+  const a2 = ((i + 1) / SEG) * Math.PI * 2;
+  return {
+    from:  [gz[0] + Math.cos(a1) * rLat, gz[1] + Math.sin(a1) * rLng],
+    to:    [gz[0] + Math.cos(a2) * rLat, gz[1] + Math.sin(a2) * rLng],
+    color: CROSS_RED,
+  };
+});
+const crossArcs = [
+  { from: gz, to: [gz[0] + 0.85, gz[1]],        color: CROSS_RED }, // N
+  { from: gz, to: [gz[0] - 0.85, gz[1]],        color: CROSS_RED }, // S
+  { from: gz, to: [gz[0], gz[1] + 0.95],        color: CROSS_RED }, // E
+  { from: gz, to: [gz[0], gz[1] - 0.95],        color: CROSS_RED }, // W
+];
+
+const ARCS = [...prdArcs, ...ringArcs, ...crossArcs];
 
 function initGlobe() {
   if (raf)   { cancelAnimationFrame(raf); raf = null; }
@@ -2379,6 +2248,9 @@ function initGlobe() {
     markerColor      : [1.00, 0.82, 0.35],
     glowColor        : [1.4, 0.58, 0.16],
     markers          : MARKERS,
+    arcs             : ARCS,
+    arcWidth         : 1.4,
+    arcHeight        : 0.06,
   });
 
   // v2 animation: manual rAF loop calling globe.update({phi})
