@@ -524,22 +524,21 @@ section{position:relative;overflow:visible}
   z-index: 1;
   pointer-events: none;
 }
-/* 外圈大光晕：尺寸为 globe 容器的 200%，轮廓处最亮，向外大范围渐隐 */
+/* 外圈大光晕：缩小范围，降低亮度 */
 #globe-outer-glow {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 200%;
+  width: 160%;
   aspect-ratio: 1;
   background: radial-gradient(circle at 50% 50%,
-    transparent              24%,
-    rgba(200, 82, 14, 0.00)  27%,
-    rgba(200, 82, 14, 0.72)  33%,
-    rgba(165, 62, 10, 0.42)  42%,
-    rgba(110, 42,  7, 0.18)  56%,
-    rgba( 60, 22,  3, 0.06)  68%,
-    transparent              80%
+    transparent              28%,
+    rgba(200, 82, 14, 0.00)  31%,
+    rgba(200, 82, 14, 0.38)  36%,
+    rgba(155, 58, 10, 0.16)  46%,
+    rgba( 90, 34,  6, 0.05)  58%,
+    transparent              68%
   );
   pointer-events: none;
   z-index: 0;
@@ -552,6 +551,19 @@ section{position:relative;overflow:visible}
   opacity: 0.78;
   -webkit-mask-image: radial-gradient(circle at 50% 50%, black 38%, transparent 122%);
   mask-image: radial-gradient(circle at 50% 50%, black 38%, transparent 122%);
+}
+/* 地球轮廓细白线圈 */
+#globe-edge-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 97%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 0.8px solid rgba(255, 255, 255, 0.40);
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* ========================================
@@ -1137,6 +1149,7 @@ section{position:relative;overflow:visible}
   <div id="globe-splash-wrap">
     <div id="globe-outer-glow"></div>
     <canvas id="globe-canvas"></canvas>
+    <div id="globe-edge-ring"></div>
   </div>
   <div id="splash-content">
     <div id="splash-name-group">
@@ -2210,32 +2223,8 @@ let phi   = 2.0;   // ≈113°E, Guangzhou faces viewer on load
 let globe = null;
 let raf   = null;
 
-// ── 无圆点标记（黄色圈圈移除）──
 const MARKERS = [];
-
-// ── PRD boundary polygon (red arc outline) ──
-const PRD_RED   = [1.0, 0.18, 0.12];
-const prdPts = [
-  [24.1, 113.0], [24.3, 113.9], [23.9, 114.5],
-  [23.2, 115.0], [22.6, 115.0], [22.1, 114.4],
-  [21.9, 113.5], [22.2, 112.8], [23.0, 112.4],
-  [24.1, 113.0],
-];
-const prdArcs = prdPts.slice(1).map((to, i) => ({
-  from: prdPts[i], to, color: PRD_RED,
-}));
-
-// ── Coordinate crosshair arms only（移除圆环弧）──
-const CROSS_RED = [1.0, 0.35, 0.18];
-const gz  = [23.13, 113.26];
-const crossArcs = [
-  { from: gz, to: [gz[0] + 0.85, gz[1]],  color: CROSS_RED },
-  { from: gz, to: [gz[0] - 0.85, gz[1]],  color: CROSS_RED },
-  { from: gz, to: [gz[0], gz[1] + 0.95],  color: CROSS_RED },
-  { from: gz, to: [gz[0], gz[1] - 0.95],  color: CROSS_RED },
-];
-
-const ARCS = [...prdArcs, ...crossArcs];
+const ARCS    = [];
 
 function initGlobe() {
   if (raf)   { cancelAnimationFrame(raf); raf = null; }
@@ -2259,8 +2248,6 @@ function initGlobe() {
     glowColor        : [1.4, 0.58, 0.16],
     markers          : MARKERS,
     arcs             : ARCS,
-    arcWidth         : 1.4,
-    arcHeight        : 0.06,
   });
 
   // v2 animation: manual rAF loop calling globe.update({phi})
