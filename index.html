@@ -2278,8 +2278,9 @@ let raf   = null;
 const PRD_PHI = 2.0;
 const TWO_PI  = Math.PI * 2;
 
-let globeMode   = 'normal'; // 'normal' | 'fastSpin' | 'zoom' | 'done'
-let exitCallback = null;
+let globeMode       = 'normal'; // 'normal' | 'fastSpin' | 'zoom' | 'done'
+let exitCallback    = null;
+let fastSpinStarted = 0;
 
 function isPRDVisible() {
   let p = ((phi % TWO_PI) + TWO_PI) % TWO_PI;
@@ -2346,10 +2347,11 @@ function initGlobe() {
 
   function animate() {
     if (globeMode === 'normal') {
-      phi += 0.006;
+      phi += 0.0028;
     } else if (globeMode === 'fastSpin') {
       phi += 0.028;
-      if (isPRDVisible()) {
+      // Minimum 0.6s of fast spin so speedup is always visible
+      if (Date.now() - fastSpinStarted > 600 && isPRDVisible()) {
         globeMode = 'zoom';
         startZoom();
       }
@@ -2366,13 +2368,9 @@ function initGlobe() {
 // Expose controller for splash click handler
 window.globeController = {
   startExitSequence: function(cb) {
-    exitCallback = cb;
-    if (isPRDVisible()) {
-      globeMode = 'zoom';
-      startZoom();
-    } else {
-      globeMode = 'fastSpin';
-    }
+    exitCallback    = cb;
+    fastSpinStarted = Date.now();
+    globeMode       = 'fastSpin'; // always spin fast first, zoom after PRD visible
   }
 };
 
